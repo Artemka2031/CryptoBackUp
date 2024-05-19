@@ -1,4 +1,3 @@
-import os
 import shutil
 import zipfile
 from datetime import datetime
@@ -6,63 +5,87 @@ from pathlib import Path
 
 
 class BackupManager:
+    """
+    Класс для создания и восстановления зашифрованных резервных копий файлов.
+
+    :param encryptor: Объект для шифрования и дешифрования файлов.
+    """
     def __init__(self, encryptor):
         self.encryptor = encryptor
+        self.source_dir = Path("Data/source")
+        self.backup_dir = Path("Data/Backup")
+        self.restore_dir = Path("Data/Restore")
 
-    def backup_files(self, source_dir, backup_root_dir):
-        source_dir = Path(source_dir)
-        backup_root_dir = Path(backup_root_dir)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_zip_path = backup_root_dir / f"{source_dir.name}_{timestamp}.zip"
+    def create_backup(self):
+        """
+        Создает резервную копию зашифрованных файлов.
 
-        with zipfile.ZipFile(backup_zip_path, 'w') as zipf:
-            for file_path in source_dir.glob('*'):
-                if file_path.is_file():
-                    encrypted_file_name = f"{file_path.stem}.enc{file_path.suffix}"
-                    encrypted_file_path = file_path.parent / encrypted_file_name
-                    self.encryptor.encrypt_file(str(file_path), str(encrypted_file_path))
-                    zipf.write(str(encrypted_file_path), arcname=encrypted_file_name)
-                    os.remove(str(encrypted_file_path))
-                    print(f"File {file_path.name} encrypted and added to backup as {encrypted_file_name}")
-
-        return backup_zip_path
-
-    def restore_files(self, backup_zip, restore_root_dir):
-        backup_zip = Path(backup_zip)
-        restore_root_dir = Path(restore_root_dir)
-        restored_zip_path = restore_root_dir / f"{backup_zip.stem}_restored.zip"
-        temp_dir = Path(restore_root_dir / "temp")
+        :return: Название созданного архива.
+        """
+        # Создаем временную папку для зашифрованных файлов
+        temp_dir = self.backup_dir / "temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            with zipfile.ZipFile(backup_zip, 'r') as zipf:
-                zipf.extractall(path=temp_dir)
-                print(f"Extracted files to {temp_dir}")
+        # Шифруем файлы из исходной папки
+        for file_path in self.source_dir.glob("**/*"):
+            if file_path.is_file():
+                relative_path = file_path.relative_to(self.source_dir)
+                encrypted_file_path = temp_dir / relative_path
+                encrypted_file_path.parent.mkdir(parents=True, exist_ok=True)
+                self.encryptor.encrypt_file(file_path, encrypted_file_path)
 
-                with zipfile.ZipFile(restored_zip_path, 'w') as restored_zip:
-                    for file_path in temp_dir.glob('*'):
-                        if file_path.suffix == '.enc':
-                            try:
-                                original_extension = file_path.stem[-4:] if file_path.stem.endswith('.enc') else ''
-                                decrypted_file_name = f"{file_path.stem[:-4]}{original_extension}"
-                                decrypted_file_path = file_path.with_name(decrypted_file_name)
-                                self.encryptor.decrypt_file(str(file_path), str(decrypted_file_path))
-                                restored_zip.write(str(decrypted_file_path), arcname=decrypted_file_name)
-                                os.remove(str(file_path))
-                                os.remove(str(decrypted_file_path))
-                                print(
-                                    f"File {file_path.name} decrypted and added to restored archive as {decrypted_file_name}")
-                            except Exception as e:
-                                print(f"Error decrypting {file_path.name}: {e}")
-            shutil.rmtree(temp_dir)  # Cleanup temporary directory
-            print(f"Restored files are zipped in {restored_zip_path}")
-            return restored_zip_path
-        except FileNotFoundError:
-            print(f"Backup zip file {backup_zip} not found.")
-            return None
-        except zipfile.BadZipFile:
-            print(f"File {backup_zip} is not a zip file or it is corrupted.")
-            return None
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None
+        # Создаем архив из зашифрованных файлов
+        archive_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        archive_path = self.backup_dir / archive_name
+
+        with zipfile.ZipFile(archive_path, 'w') as archive:
+            for file_path in temp_dir.glob("**/*"):
+                if file_path.is_file():
+                    archive.write(file_path, arcname=file_path.relative_to(temp_dir))
+
+        # Удаляем временную папку
+        shutil.rmtree(temp_dir)
+
+        print(f"Backup created: {archive_path}")
+
+        return archive_name
+
+    def restore_backup(self, archive_name):
+        """
+        Восстанавливает резервную копию, расшифровывает файлы и создает новый архив с расшифрованными данными.
+
+        :param archive_name: Название архива для восстановления.
+        :return: Название созданного архива с расшифрованными данными.
+        """
+        # Создаем временную папку для разархивированных файлов
+        temp_dir = self.restore_dir / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        archive_path = self.backup_dir / archive_name
+
+        # Разархивируем файлы
+        with zipfile.ZipFile(archive_path, 'r') as archive:
+            archive.extractall(temp_dir)
+
+        # Дешифруем файлы и сохраняем в временной папке
+        for file_path in temp_dir.glob("**/*"):
+            if file_path.is_file():
+                relative_path = file_path.relative_to(temp_dir)
+                decrypted_file_path = temp_dir / relative_path
+                self.encryptor.decrypt_file(file_path, decrypted_file_path)
+
+        # Создаем архив из расшифрованных файлов
+        restored_archive_name = archive_name.replace(".zip", "_restored.zip")
+        restored_archive_path = self.restore_dir / restored_archive_name
+
+        with zipfile.ZipFile(restored_archive_path, 'w') as archive:
+            for file_path in temp_dir.glob("**/*"):
+                if file_path.is_file():
+                    archive.write(file_path, arcname=file_path.relative_to(temp_dir))
+
+        # Удаляем временную папку
+        shutil.rmtree(temp_dir)
+
+        print(f"Backup restored and archived: {restored_archive_path}")
+
+        return restored_archive_name
