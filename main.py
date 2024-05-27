@@ -1,6 +1,8 @@
 import argparse
+
 from BackupManager import BackupManager
 from FileEncryptor import FileEncryptor
+
 
 def main():
     """
@@ -13,10 +15,10 @@ def main():
     - --password: Пароль для шифрования/дешифрования файлов.
     - --archive: Название архива для восстановления (требуется только для действия 'restore').
     """
-    parser = argparse.ArgumentParser(description="Backup and restore files with encryption")
-    parser.add_argument("action", choices=["backup", "restore"], help="Action to perform: 'backup' or 'restore'")
-    parser.add_argument("--password", required=True, help="Password for encryption/decryption")
-    parser.add_argument("--archive", help="Name of the archive to restore (required for 'restore' action)")
+    parser = argparse.ArgumentParser(description="Резервная копия и восстановление файлов с шифрованием")
+    parser.add_argument("action", choices=["backup", "restore"], help="Действия для выполнения: 'backup' или 'restore'")
+    parser.add_argument("--password", required=True, help="Пароль для encryption/decryption")
+    parser.add_argument("--archive", help="Имя архива для восстановления (требуется только для действия 'restore')")
 
     args = parser.parse_args()
 
@@ -25,13 +27,14 @@ def main():
 
     if args.action == "backup":
         archive_name = manager.create_backup()
-        print(f"Created backup archive: {archive_name}")
+        print(f"Успешно создан архив: {archive_name}")
     elif args.action == "restore":
         if not args.archive:
-            print("Error: --archive is required for restore action")
+            print("Ошибка: --archive обязательный атрибут для действия 'restore'")
             return
         restored_archive_name = manager.restore_backup(args.archive)
-        print(f"Restored backup archive: {restored_archive_name}")
+        print(f"Успешно восстановлен архив: {restored_archive_name}")
+
 
 if __name__ == "__main__":
     main()

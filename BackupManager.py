@@ -46,7 +46,7 @@ class BackupManager:
         # Удаляем временную папку
         shutil.rmtree(temp_dir)
 
-        print(f"Backup created: {archive_path}")
+        print(f"Создана резервная копия: {archive_path}")
 
         return archive_name
 
@@ -86,6 +86,6 @@ class BackupManager:
         # Удаляем временную папку
         shutil.rmtree(temp_dir)
 
-        print(f"Backup restored and archived: {restored_archive_path}")
+        print(f"Резервная копия восстановлена: {restored_archive_path}")
 
         return restored_archive_name
